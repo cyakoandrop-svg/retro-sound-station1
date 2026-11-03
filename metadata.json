@@ -1,0 +1,8 @@
+{
+  "name": " レトロサウンドステーション",
+  "description": "5つのchで音楽（ローファイ、シンセウェーブ、アンビエント、ジャズなど）が流れ、チューニングによるノイズフェードやカセットテープの回転、イコライザーなどの機能にシミュレートした昭和レトロなオーディオ・ラジオデッキ。",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
