@@ -1869,6 +1869,7 @@ export default function App() {
 
   const [audioCtxState, setAudioCtxState] = useState<AudioContext | null>(null);
 
+
   // 本番環境：デバッグログ更新による無駄な再レンダリングを抑止（軽量no-op化）
   const addDebugLog = (
     _category: 'audio' | 'tuner' | 'timer' | 'system' | 'error',
