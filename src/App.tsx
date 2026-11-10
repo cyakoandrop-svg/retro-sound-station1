@@ -1,15 +1,13 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Play, 
   Pause, 
   Radio, 
   Info, 
   Power,
-  Sparkles,
   Target,
   Coffee,
   Moon,
-  CloudRain,
   Timer,
   Clock,
   Minimize2,
@@ -28,9 +26,7 @@ import {
   FastForward,
   Volume2,
   VolumeX,
-  Sun,
-  ArrowLeftRight,
-  X
+  Sun
 } from 'lucide-react';
 import { STATIONS } from './data';
 import { Station } from './types';
@@ -1923,6 +1919,123 @@ export default function App() {
   const activePresetPairRef = useRef<PresetPairType>(null);
   activePresetPairRef.current = activePresetPair;
 
+  // ワンタップ選局（2局交互再生）用 非連続・全曲巡回トラック履歴管理
+  const presetPairTrackHistoryRef = useRef<{
+    lastTrackByFreq: Record<number, number>;
+    lastPatternByFreq: Record<number, number>;
+    decks: Record<number, number[]>;
+  }>({
+    lastTrackByFreq: {},
+    lastPatternByFreq: {},
+    decks: {}
+  });
+
+  // 各ステーションのトラック番号に対応する和音セット（bossaPatternIndex）を取得
+  const getStationPatternIndex = (freq: number, trackIdx: number): number => {
+    if (Math.abs(freq - 101.5) < 0.25 || Math.abs(freq - 101.2) < 0.25) {
+      if (trackIdx === 3) return 2;
+      if (trackIdx === 1) return 1;
+      return 0;
+    }
+    if (Math.abs(freq - 105.8) < 0.25) {
+      if (trackIdx === 2) return 2;
+      if (trackIdx === 1 || trackIdx === 3) return 1;
+      return 0;
+    }
+    if (Math.abs(freq - 97.5) < 0.25) {
+      if (trackIdx === 4) return 3;
+      if (trackIdx === 3) return 2;
+      if (trackIdx === 1) return 1;
+      return 0;
+    }
+    return trackIdx % 4;
+  };
+
+  /**
+   * ワンタップ選局（2局交互再生）用 非連続・全曲巡回トラック選出関数
+   * - 同一局で同じトラック/セットが連続して演奏されるのを100%防止
+   * - 全トラックが一度ずつ演奏されるまで重複しないシャッフル巡回（フィッシャー・イェーツ方式）
+   * - 新しい巡回サイクル開始時も直前のトラック/セットと重複しないよう保証
+   * - 交互切り替え時に相手局と同じトラック番号が続く違和感も極小化
+   */
+  const getNextPresetPairTrackIndex = (targetStation: Station, previousStationTrackIdx?: number): number => {
+    const freq = targetStation.frequency;
+    const totalTracks = targetStation.tracks.length;
+    if (totalTracks <= 1) return 0;
+
+    const history = presetPairTrackHistoryRef.current;
+    let deck = history.decks[freq];
+    const lastTrack = history.lastTrackByFreq[freq];
+    const lastPattern = history.lastPatternByFreq[freq];
+
+    // デッキが存在しない、または空になった場合は全トラック番号をシャッフル補充
+    if (!deck || deck.length === 0) {
+      const allIndices = Array.from({ length: totalTracks }, (_, i) => i);
+      // Fisher-Yates シャッフル
+      for (let i = allIndices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [allIndices[i], allIndices[j]] = [allIndices[j], allIndices[i]];
+      }
+      // 前回の同一局トラック、または前回の同一局パターンと重なる場合、先頭要素をスワップして連続を確実に回避
+      if (allIndices.length > 1) {
+        const firstPat = getStationPatternIndex(freq, allIndices[0]);
+        if (allIndices[0] === lastTrack || (lastPattern !== undefined && firstPat === lastPattern)) {
+          const betterIdx = allIndices.findIndex(
+            (idx, i) => i > 0 && idx !== lastTrack && getStationPatternIndex(freq, idx) !== lastPattern
+          );
+          if (betterIdx > 0) {
+            [allIndices[0], allIndices[betterIdx]] = [allIndices[betterIdx], allIndices[0]];
+          } else {
+            const swapTarget = allIndices.length - 1;
+            [allIndices[0], allIndices[swapTarget]] = [allIndices[swapTarget], allIndices[0]];
+          }
+        }
+      }
+      deck = allIndices;
+    }
+
+    // デッキ内から最適な候補を選択
+    let chosenDeckPos = -1;
+
+    // 第1優先: lastTrackともlastPatternともpreviousStationTrackIdxとも異なるトラック
+    chosenDeckPos = deck.findIndex((tIdx) => {
+      const pat = getStationPatternIndex(freq, tIdx);
+      const notSameTrack = (lastTrack === undefined || tIdx !== lastTrack);
+      const notSamePattern = (lastPattern === undefined || pat !== lastPattern);
+      const notSameAsPrevStation = (previousStationTrackIdx === undefined || tIdx !== previousStationTrackIdx);
+      return notSameTrack && notSamePattern && notSameAsPrevStation;
+    });
+
+    // 第2優先: 直前局とは同じでもよいが、同一局でのlastTrackおよびlastPatternと異なるトラック
+    if (chosenDeckPos === -1) {
+      chosenDeckPos = deck.findIndex((tIdx) => {
+        const pat = getStationPatternIndex(freq, tIdx);
+        const notSameTrack = (lastTrack === undefined || tIdx !== lastTrack);
+        const notSamePattern = (lastPattern === undefined || pat !== lastPattern);
+        return notSameTrack && notSamePattern;
+      });
+    }
+
+    // 第3優先: 同一局のlastTrackと異なるトラック
+    if (chosenDeckPos === -1) {
+      chosenDeckPos = deck.findIndex((tIdx) => lastTrack === undefined || tIdx !== lastTrack);
+    }
+
+    // フォールバック: デッキ先頭
+    if (chosenDeckPos === -1) {
+      chosenDeckPos = 0;
+    }
+
+    const chosenIdx = deck.splice(chosenDeckPos, 1)[0];
+
+    // 履歴更新
+    history.lastTrackByFreq[freq] = chosenIdx;
+    history.lastPatternByFreq[freq] = getStationPatternIndex(freq, chosenIdx);
+    history.decks[freq] = deck;
+
+    return chosenIdx;
+  };
+
   // 朝・昼・晩 時間帯自動連動サーチモード
   const [isTimeAutoSearch, setIsTimeAutoSearch] = useState<boolean>(false);
 
@@ -1943,39 +2056,9 @@ export default function App() {
   ) => {};
 
   // 本線ラジオチャンネル専用 カスタムカセット演奏データオーバーライド
-  const [stationAudioOverrides, setStationAudioOverrides] = useState<Record<number, StationProgression>>({});
   const stationAudioOverridesRef = useRef<Record<number, StationProgression>>({});
 
-  const customStationFlags = useMemo(() => {
-    const flags: Record<number, boolean> = {};
-    for (const freq of [76.0, 88.1, 92.4, 97.5, 101.5, 105.8]) {
-      flags[freq] = Boolean(stationAudioOverrides[freq]);
-    }
-    return flags;
-  }, [stationAudioOverrides]);
 
-  const activeStationConfigs = useMemo(() => {
-    return { ...CHORD_PROGRESSIONS, ...stationAudioOverrides };
-  }, [stationAudioOverrides]);
-
-  const handleUpdateStationCassette = (freq: number, newProg: StationProgression, name: string) => {
-    setStationAudioOverrides(prev => {
-      const next = { ...prev, [freq]: newProg };
-      stationAudioOverridesRef.current = next;
-      return next;
-    });
-    addDebugLog('audio', `本線局 ${freq.toFixed(1)}MHz にカスタムカセット「${name}」を装填・更新しました`, 'success');
-  };
-
-  const handleResetStationCassette = (freq: number) => {
-    setStationAudioOverrides(prev => {
-      const next = { ...prev };
-      delete next[freq];
-      stationAudioOverridesRef.current = next;
-      return next;
-    });
-    addDebugLog('audio', `本線局 ${freq.toFixed(1)}MHz のカセット演奏データを工場初期値にリセットしました`, 'info');
-  };
 
   // グローバル例外・未処理Promiseの捕捉とデバッグログ連携
   useEffect(() => {
@@ -2575,25 +2658,7 @@ export default function App() {
     return ctx;
   };
 
-  // 外部割り込みやinterrupted異常時にAudioContextを完全に再生成・修復
-  const restartAudioEngine = async () => {
-    try {
-      if (audioCtxRef.current) {
-        try {
-          await audioCtxRef.current.close();
-        } catch (e) {}
-        audioCtxRef.current = null;
-      }
-      const newCtx = initAudioEngine(true);
-      if (newCtx) {
-        await newCtx.resume().catch(() => {});
-        setAudioCtxState(newCtx);
-        addDebugLog('audio', `AudioContext restarted & active (state: ${newCtx.state})`, 'success');
-      }
-    } catch (e: any) {
-      addDebugLog('audio', `Failed to restart AudioContext: ${e?.message || e}`, 'error');
-    }
-  };
+
 
 
 
@@ -2621,32 +2686,7 @@ export default function App() {
     });
   };
 
-  // 1kHz 診断用テストトーン発音（オーディオデバイス疎通確認）
-  const triggerTestTone = () => {
-    const ctx = ensureAudioEngine();
-    if (!ctx) {
-      addDebugLog('audio', 'AudioContext is unavailable for test tone', 'error');
-      return;
-    }
-    const state = ctx.state as string;
-    if (state === 'suspended' || state === 'interrupted') {
-      ctx.resume().catch(() => {});
-    }
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(1000, now);
-    gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.2, now + 0.02);
-    gain.gain.setValueAtTime(0.2, now + 0.45);
-    gain.gain.linearRampToValueAtTime(0, now + 0.5);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + 0.52);
-    addDebugLog('audio', '1kHz Diagnostic test tone dispatched (0.5s @ 1000Hz)', 'info');
-  };
+
 
   // ═════════════════════════════════════════════════════════════
   // ステーションジングル (30分毎に挟む Prime Time Gold ジングル)
@@ -6258,9 +6298,9 @@ export default function App() {
 
             const nextSt = STATIONS.find((s) => Math.abs(s.frequency - nextFreq) < 0.1);
             if (nextSt) {
-              const randomTrackIdx = Math.floor(Math.random() * nextSt.tracks.length);
-              addDebugLog('tuner', `Preset pair [${mode}] auto-alternating to: ${nextSt.name} (${nextSt.frequency.toFixed(1)} MHz) Track #${randomTrackIdx + 1}`, 'info');
-              changeTrackWithFade(randomTrackIdx, nextSt, true);
+              const nextTrackIdx = getNextPresetPairTrackIndex(nextSt, currentTrackIndex);
+              addDebugLog('tuner', `Preset pair [${mode}] auto-alternating to: ${nextSt.name} (${nextSt.frequency.toFixed(1)} MHz) Track #${nextTrackIdx + 1} (${nextSt.tracks[nextTrackIdx]?.title || 'Track'})`, 'info');
+              changeTrackWithFade(nextTrackIdx, nextSt, true);
             } else {
               const total = closestSt.tracks.length;
               const nextIdx = (currentTrackIndex + 1) % total;
@@ -6561,6 +6601,11 @@ export default function App() {
     if (activePresetPairRef.current === mode && targetSpecificFreq === undefined) {
       setActivePresetPair(null);
       activePresetPairRef.current = null;
+      presetPairTrackHistoryRef.current = {
+        lastTrackByFreq: {},
+        lastPatternByFreq: {},
+        decks: {},
+      };
       addDebugLog('tuner', `ワンタップ選局 [${PRESET_PAIRS[mode].name}] をOFFにしました（通常再生・チューナー選択）`, 'info');
       return;
     }
@@ -6617,11 +6662,11 @@ export default function App() {
 
     const targetSt = STATIONS.find((s) => Math.abs(s.frequency - targetFreq) < 0.1);
     if (targetSt) {
-      const randomTrackIdx = Math.floor(Math.random() * targetSt.tracks.length);
-      addDebugLog('tuner', `ワンタップ選局 [${PRESET_PAIRS[mode].name}] ON: ${targetSt.name} (${targetSt.frequency.toFixed(1)} MHz) [2局自動交代]`, 'info');
+      const nextTrackIdx = getNextPresetPairTrackIndex(targetSt, currentTrackIndex);
+      addDebugLog('tuner', `ワンタップ選局 [${PRESET_PAIRS[mode].name}] ON: ${targetSt.name} (${targetSt.frequency.toFixed(1)} MHz) Track #${nextTrackIdx + 1} (${targetSt.tracks[nextTrackIdx]?.title || 'Track'}) [2局自動交代]`, 'info');
       if (isPlaying && isPowerOn) {
         if (Math.abs(frequencyRef.current - targetFreq) >= 0.1 || activeStation?.frequency !== targetSt.frequency) {
-          changeTrackWithFade(randomTrackIdx, targetSt, false, true);
+          changeTrackWithFade(nextTrackIdx, targetSt, false, true);
         }
       } else {
         setFrequency(targetFreq);
@@ -6629,7 +6674,7 @@ export default function App() {
         setActiveStation(targetSt);
         activeStationRef.current = targetSt;
         setTargetStationName(`${targetSt.name} (${targetSt.frequency.toFixed(1)} MHz)`);
-        setCurrentTrackIndex(randomTrackIdx);
+        setCurrentTrackIndex(nextTrackIdx);
         setCurrentTimeSec(0);
         setProgress(0);
       }
@@ -7197,11 +7242,17 @@ export default function App() {
                                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                                     <span>{pairInfo?.name} モード ON (2局自動交代)</span>
                                   </span>
+
                                   <button
                                     type="button"
                                     onClick={() => {
                                       setActivePresetPair(null);
                                       activePresetPairRef.current = null;
+                                      presetPairTrackHistoryRef.current = {
+                                        lastTrackByFreq: {},
+                                        lastPatternByFreq: {},
+                                        decks: {},
+                                      };
                                     }}
                                     className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white border border-stone-700 cursor-pointer"
                                     title="通常再生に戻す"
@@ -7754,6 +7805,7 @@ export default function App() {
                               <Bell className={`w-3.5 h-3.5 ${isTimeSignalEnabled ? (theme === 'candypop' ? 'text-pink-300' : theme === 'silver' ? 'text-cyan-300' : 'text-amber-300') : 'text-stone-500'}`} />
                               <span>{isTimeSignalEnabled ? '時報 ON' : '時報 OFF'}</span>
                             </button>
+
                           </div>
                         </div>
 

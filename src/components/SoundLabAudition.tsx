@@ -16,7 +16,7 @@ import { electroHealing } from '../audio/electroHealing';
 import { retroMusicBox } from '../audio/retroMusicBox';
 import * as Tone from 'tone';
 import { SoundSlotPattern, ChordNoteData, RhythmStepTrigger } from '../types/soundSlot';
-import { CUSTOM_STATION_PATTERN, debussy_reverie_raindropPattern } from '../audio/slots/builtinSlots';
+import { debussy_reverie_raindropPattern } from '../audio/slots/builtinSlots';
 import { SlotCartridgeManager } from './SlotCartridgeManager';
 
 interface SoundLabAuditionProps {

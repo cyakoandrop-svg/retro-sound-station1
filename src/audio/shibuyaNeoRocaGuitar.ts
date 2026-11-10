@@ -1,5 +1,3 @@
-import * as Tone from 'tone';
-
 /**
  * 92.4MHz「SHIBUYA DAYLIGHT GROOVE」Cat・street・Twist (Neo-Roca) 専用
  * 80s ネオロカビリー・トゥワンギーギター音源エンジン (Gretsch 6120 Twang & Safe Slapback Echo)
@@ -130,6 +128,33 @@ class ShibuyaNeoRocaGuitarEngine {
         this.masterGain.connect(node);
       } catch (e) {}
     }
+  }
+
+  public updateConfig(newConfig: Partial<ShibuyaNeoRocaGuitarConfig>) {
+    this.config = { ...this.config, ...newConfig };
+    if (!this.rawContext) return;
+    const now = this.rawContext.currentTime;
+    if (newConfig.volume !== undefined && this.masterGain) {
+      this.masterGain.gain.setValueAtTime(this.config.volume, now);
+    }
+    if (newConfig.slapbackDelayMs !== undefined && this.slapbackDelayNode) {
+      this.slapbackDelayNode.delayTime.setValueAtTime(this.config.slapbackDelayMs / 1000, now);
+    }
+    if (newConfig.slapbackMix !== undefined && this.slapbackGain) {
+      this.slapbackGain.gain.setValueAtTime(this.config.slapbackMix, now);
+    }
+  }
+
+  public getInternalNodes() {
+    return {
+      inputBus: this.inputBus,
+      dryGain: this.dryGain,
+      slapbackDelayNode: this.slapbackDelayNode,
+      slapbackToneFilter: this.slapbackToneFilter,
+      slapbackGain: this.slapbackGain,
+      masterCompressor: this.masterCompressor,
+      masterGain: this.masterGain,
+    };
   }
 
   /**
