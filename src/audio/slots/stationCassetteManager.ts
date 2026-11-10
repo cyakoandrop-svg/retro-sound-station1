@@ -87,7 +87,8 @@ const DEFAULT_TRACK_NAMES: Record<number, string[]> = {
   88.1: [
     'Café da Manhã (Ipanema Bossa)',
     'Morning Bossa (Bossa Project 2)',
-    'Acoustic Walk (Relaxing Lounge)'
+    'Acoustic Walk (Relaxing Lounge)',
+    'Warm Breeze'
   ],
   92.4: [
     'Cat・street・Twist( Neo-Roca)',

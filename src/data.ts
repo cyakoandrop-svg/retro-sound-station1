@@ -66,6 +66,13 @@ export const STATIONS: Station[] = [
         artist: "Shibuya Bossa Club",
         url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
         duration: "5:44"
+      },
+      {
+        id: "bossa-4",
+        title: "Warm Breeze",
+        artist: "Tokyo Acoustic Lounge",
+        url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
+        duration: "5:30"
       }
     ]
   },

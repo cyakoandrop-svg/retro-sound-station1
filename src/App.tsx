@@ -197,8 +197,14 @@ const CHORD_PROGRESSIONS: { [key: number]: StationProgression } = {
   },
   88.1: {
     tempo: 80, // 作業用リラックス・ボサノヴァテンポ (80 BPM)
-    tempoPatterns: [72, 80, 88],
+    tempoPatterns: [72, 80, 88, 76],
     swing: 0.05,
+    trackNames: [
+      'Morning Light',
+      'Sunlit Breeze',
+      'Café da Manhã',
+      'Warm Breeze'
+    ],
     chords: [
       { name: "Dm9", root: 146.83, notes: [146.83, 174.61, 220.00, 261.63, 329.63], bass: 73.42 },     // Dm9 (最高音: E4 329.63Hz)
       { name: "G7(13)", root: 196.00, notes: [174.61, 196.00, 246.94, 329.63], bass: 98.00 },          // G7(13) (高すぎたE5/A4を排除し中低域ボイシング F3, G3, B3, E4)
@@ -226,6 +232,13 @@ const CHORD_PROGRESSIONS: { [key: number]: StationProgression } = {
         { name: "Am9", root: 220.00, notes: [196.00, 220.00, 246.94, 261.63, 329.63], bass: 110.00 },
         { name: "FM7(9)", root: 174.61, notes: [164.81, 174.61, 220.00, 261.63, 329.63], bass: 87.31 },
         { name: "G7(13)", root: 196.00, notes: [174.61, 196.00, 246.94, 329.63], bass: 98.00 }
+      ],
+      // パターン3 (★Warm Breeze - 分散和音 F-1-3-5-3): FM7(9) - Em7(11) - Dm9 - CM7(9)
+      [
+        { name: "FM7(9)", root: 174.61, notes: [174.61, 220.00, 261.63, 329.63, 392.00], bass: 87.31 },
+        { name: "Em7(11)", root: 164.81, notes: [164.81, 196.00, 246.94, 293.66, 329.63], bass: 82.41 },
+        { name: "Dm9", root: 146.83, notes: [146.83, 174.61, 220.00, 261.63, 329.63], bass: 73.42 },
+        { name: "CM7(9)", root: 130.81, notes: [130.81, 164.81, 196.00, 246.94, 293.66], bass: 65.41 }
       ]
     ],
     melodyScale: [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25, 587.33, 659.25], // C Major / Bossa Scale
@@ -249,12 +262,18 @@ const CHORD_PROGRESSIONS: { [key: number]: StationProgression } = {
         kick:  [1, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0],
         snare: [0, 0, 0, 0,  0.8, 0, 0, 0,  0, 0, 0, 0,  0.8, 0, 0, 0],
         hihat: [1, 0, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0]
+      },
+      {
+        kick:  [1, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0],
+        snare: [0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0,  0.8, 0, 0, 0],
+        hihat: [1, 0, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0]
       }
     ],
     chordRhythmPatterns: [
       [0, 10],
       [0, 6, 12],
-      [0, 4, 8, 12]
+      [0, 4, 8, 12],
+      [0, 2, 4, 6, 7, 8, 10, 12, 14, 15]
     ]
   },
   92.4: { // SHIBUYA DAYLIGHT GROOVE (City Pop, 12-Bar Blues & Neo-Rockabilly Twist)
@@ -732,6 +751,23 @@ function generateBossaMelodySteps(
   bossaPatternIndex: number = 0
 ): BossaMelodyStepInfo[] {
   const result: BossaMelodyStepInfo[] = [];
+
+  if (bossaPatternIndex === 3) {
+    // パターン3 (★Warm Breeze): メロディ発音ステップ
+    // 1小節目(4, 8), 2小節目(4, 8), 3小節目(0, 8), 4小節目(4, 8)
+    const barInProg = totalBar % 4;
+    if (barInProg === 2) {
+      // 3小節目: Dm9 (ステップ 0, 8)
+      result.push({ step: 0, isLanding: false, duration: 0.65 });
+      result.push({ step: 8, isLanding: true, duration: 0.85 });
+    } else {
+      // 1, 2, 4小節目: FM7, Em7, CM7 (ステップ 4, 8)
+      result.push({ step: 4, isLanding: false, duration: 0.65 });
+      result.push({ step: 8, isLanding: true, duration: 0.85 });
+    }
+    return result;
+  }
+
   const isFirstTwoBars = (totalBar === 0 || totalBar === 1);
 
   if (isFirstTwoBars && intro) {
@@ -1001,6 +1037,35 @@ const PATTERN2_EVEN_BAR_EVENTS: CompingStepEvent[] = [
   { step: 10, type: 'chord',        durationSteps: 4, velocity: 0.52 },
   { step: 14, type: 'chord_change', durationSteps: 6, velocity: 0.52 }, // 4拍目裏で次小節コードへシンコペーションタイ
 ];
+
+/**
+ * 88.1MHz Warm Breeze（パターン3）専用ボイスリーディング・メロディ音選定関数
+ * - 直前音からのボイスリーディング（跳躍防止・最短音程差・順次進行優先）を適用
+ * - 3小節目 Dm9 の不協和音となるB♮を排し、短3度F4と長9度E4が歌う協和音階に完全準拠
+ */
+function getWarmBreezeMelodyPitch(scale: number[], prevPitch: number | null): number {
+  if (!prevPitch) {
+    // 歌い出し: FM7の温かみのある第3音 (A4 = 440.00Hz) または第5音 (C5 = 523.25Hz)
+    return scale[2] || scale[1] || scale[0];
+  }
+
+  // 直前音からの半音差を計算
+  const candidates = scale.map((note) => {
+    const semitones = Math.abs(12 * Math.log2(note / prevPitch));
+    return { note, semitones };
+  });
+
+  // 半音差が小さい順にソート (跳躍防止・ボイスリーディング)
+  candidates.sort((a, b) => a.semitones - b.semitones);
+
+  // 同音連打（0半音）の過度な継続を防ぎ、1〜4半音（短2度・長2度・短3度・長3度）の歌う順次進行を優先
+  const stepCandidates = candidates.filter((c) => c.semitones >= 0.8 && c.semitones <= 4.2);
+  if (stepCandidates.length > 0 && Math.random() < 0.80) {
+    return stepCandidates[Math.floor(Math.random() * Math.min(stepCandidates.length, 2))].note;
+  }
+
+  return candidates[0].note;
+}
 
 /**
  * ユーザー指定ルールに基づく対向的・連続的メロディ音選定関数
@@ -2213,6 +2278,7 @@ export default function App() {
   const staticSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const staticGainRef = useRef<GainNode | null>(null);
   const prevPattern2NotesRef = useRef<number[] | null>(null);
+  const prevWarmBreezePitchRef = useRef<number | null>(null);
 
   // 合成音楽用のマスター Gain Node
   const musicGainRef = useRef<GainNode | null>(null);
@@ -4148,7 +4214,7 @@ export default function App() {
       }
     } else if (closestSt.frequency === 88.1) {
       // 88.1MHz (TOKYO MORNING BOSSA): トラックに応じた自然なボサノヴァ進行
-      const numPatterns = prog.chordPatterns?.length || 3;
+      const numPatterns = prog.chordPatterns?.length || 4;
       bossaPatternIndex = (currentTrackIndex >= 0 && currentTrackIndex < numPatterns)
         ? currentTrackIndex
         : Math.floor(Math.random() * numPatterns);
@@ -4174,6 +4240,8 @@ export default function App() {
     let finalTempo = selectedTempo;
     if (Math.abs(closestSt.frequency - 76.0) < 0.2) {
       finalTempo = selectedTempo;
+    } else if (closestSt.frequency === 88.1) {
+      finalTempo = (bossaPatternIndex === 3) ? 76 : selectedTempo;
     } else if (closestSt.frequency === 101.2 || closestSt.frequency === 101.5) {
       finalTempo = (bossaPatternIndex === 2) ? 88 : selectedTempo;
     } else if (closestSt.frequency === 97.5) {
@@ -4209,7 +4277,12 @@ export default function App() {
     let tempoMultiplier = 1.0;
     let semitoneShift = randomKeyShift;
 
-    if (closestSt.frequency === 105.8 && bossaPatternIndex === 2) {
+    if (closestSt.frequency === 88.1 && bossaPatternIndex === 3) {
+      // 88.1MHz パターン3 (★Warm Breeze):
+      // 76 BPM と F Major の原調を厳密に保持（ランダム移調せず semitoneShift = 0）
+      semitoneShift = 0;
+      tempoMultiplier = 1.0;
+    } else if (closestSt.frequency === 105.8 && bossaPatternIndex === 2) {
       // 105.8MHz パターン2 (ドビュッシー「夢」水滴分散和音アルペジオ):
       // ドビュッシーの印象派和声(Fmaj9/F Lydian)と70 BPMのチルホップ雨音テンポを厳密に維持（半音移調や意図せぬ78BPMへの加速を完全防止）
       semitoneShift = 0;
@@ -4268,6 +4341,7 @@ export default function App() {
 
     currentRaindropBarId = -1;
     currentRaindropBarEvents = [];
+    prevWarmBreezePitchRef.current = null;
     currentRagtimeBarId = -1;
     currentRagtimeBarEvents = [];
     currentYoimiyaBarId = -1;
@@ -4583,7 +4657,52 @@ export default function App() {
 
       // 2. コード進行（ボサノヴァ・チル和音・昭和レトロオルゴール・昭和レトロラウンジピアノ）の鳴動
       if (is881) {
-        if (bossaPat === 2) {
+        if (bossaPat === 3) {
+          // パターン3 (★Warm Breeze - 分散和音 F-1-3-5-3):
+          // 前半: step 0(低音弦Fundamental/F), step 2(1度Root), step 4(3度), step 6(5度), step 7(3度)
+          // 後半: step 8(5度ベース/F), step 10(1度Root), step 12(3度), step 14(5度または7th), step 15(3度)
+          if (!isFinalBar) {
+            const chordNotes = shiftedChordNotes;
+            const rootNote = chordNotes[0];    // 1度 Root
+            const thirdNote = chordNotes[1];   // 3度
+            const fifthNote = chordNotes[2];   // 5度
+            const seventhNote = chordNotes[3]; // 7度
+
+            if (step16 === 0) {
+              // 前半 step 0: 低音弦Fundamental/F
+              tokyoMorningBossaGuitar.triggerNote(rootNote, isOutro ? 0.38 : 0.48, 0.45, audioNow);
+            } else if (step16 === 2) {
+              // 前半 step 2: 1度Root
+              tokyoMorningBossaGuitar.triggerNote(rootNote, isOutro ? 0.32 : 0.42, 0.35, audioNow);
+            } else if (step16 === 4) {
+              // 前半 step 4: 3度
+              tokyoMorningBossaGuitar.triggerNote(thirdNote, isOutro ? 0.34 : 0.44, 0.35, audioNow);
+            } else if (step16 === 6) {
+              // 前半 step 6: 5度
+              tokyoMorningBossaGuitar.triggerNote(fifthNote, isOutro ? 0.32 : 0.40, 0.28, audioNow);
+            } else if (step16 === 7) {
+              // 前半 step 7: 3度
+              tokyoMorningBossaGuitar.triggerNote(thirdNote, isOutro ? 0.30 : 0.38, 0.25, audioNow);
+            } else if (step16 === 8) {
+              // 後半 step 8: 5度ベース/F
+              tokyoMorningBossaGuitar.triggerNote(fifthNote, isOutro ? 0.36 : 0.46, 0.45, audioNow);
+            } else if (step16 === 10) {
+              // 後半 step 10: 1度Root
+              tokyoMorningBossaGuitar.triggerNote(rootNote, isOutro ? 0.32 : 0.42, 0.35, audioNow);
+            } else if (step16 === 12) {
+              // 後半 step 12: 3度
+              tokyoMorningBossaGuitar.triggerNote(thirdNote, isOutro ? 0.34 : 0.44, 0.35, audioNow);
+            } else if (step16 === 14) {
+              // 後半 step 14: 5度または7th (7thの温かなボサノヴァ響き)
+              tokyoMorningBossaGuitar.triggerNote(seventhNote || fifthNote, isOutro ? 0.32 : 0.42, 0.30, audioNow);
+            } else if (step16 === 15) {
+              // 後半 step 15: 3度
+              tokyoMorningBossaGuitar.triggerNote(thirdNote, isOutro ? 0.30 : 0.38, 0.25, audioNow);
+            }
+          } else if (isFinalBar && step16 === 0) {
+            tokyoMorningBossaGuitar.triggerChord(shiftedChordNotes, 0.50, 2.5, audioNow);
+          }
+        } else if (bossaPat === 2) {
           // 88ch Bossa Nova Pattern 2 Player / Converter
           // 16ステップ分割データ構造（Bass / Chord / Chord Change / Rest）と Voice Leading の分離処理
           const isEvenBar = totalBar % 2 === 1; // 0, 2, 4... は Odd Bar (Call), 1, 3, 5... は Even Bar (Response)
@@ -4961,7 +5080,16 @@ export default function App() {
       // 3. ベースライン（88.1MHzはボサノヴァのシンコペーション＆ルート↔5度交互ベース）
       const basePitch = currentChord.bass * pitchMultiplier;
       if (is881) {
-        if (bossaPat === 2) {
+        if (bossaPat === 3) {
+          // パターン3 (★Warm Breeze): ベース: step 0(ルート), step 8(5度)
+          if (step16 === 0) {
+            triggerSynthNote(basePitch, 'triangle', 0.45, isOutro ? 0.38 : 0.50, true, audioNow);
+          } else if (step16 === 8 && !isFinalBar) {
+            let fifthPitch = basePitch * 1.498307;
+            if (fifthPitch > 180) fifthPitch *= 0.5;
+            triggerSynthNote(fifthPitch, 'triangle', 0.40, isOutro ? 0.35 : 0.46, true, audioNow);
+          }
+        } else if (bossaPat === 2) {
           // パターン2は上部のbarEventsでベース発音を整理・実行済み (audioNowで同期)
         } else if (bossaPat === 1) {
           // 楽譜「プロジェクト 2」ベースパターン (0:ルート, 4:5度, 8:ルート, 12:5度)
@@ -5384,24 +5512,43 @@ export default function App() {
         const stepInfo = currentBossaBarPattern.find((p) => p.step === currentStep);
 
         if (stepInfo) {
-          const isAnticipationStep = (currentStep === 15);
-          let pitchChordNotes = shiftedChordNotes;
-          if (isAnticipationStep && (modifiedProg.bossaPatternIndex === 1 || modifiedProg.bossaPatternIndex === 2)) {
-            const nextChordIdx = (totalBar + 1) % modifiedProg.chords.length;
-            const nextChord = modifiedProg.chords[nextChordIdx];
-            pitchChordNotes = nextChord.notes.map((n) => n * pitchMultiplier);
-          }
+          let pitch: number;
+          if (modifiedProg.bossaPatternIndex === 3) {
+            // パターン3 (★Warm Breeze): 小節ごとの厳密なメロディ音階 & ボイスリーディング
+            // 1小節目 (FM7): [F4, G4, A4, C5, D5, E5]
+            // 2小節目 (Em7): [E4, G4, A4, B4, D5, E5]
+            // 3小節目 (Dm9): [D4, E4, F4, G4, A4, C5, D5] ※不協和音となるB♮を排し、短3度F4と長9度E4が歌う協和音階
+            // 4小節目 (CM7): [C4, D4, E4, G4, A4, B4, C5]
+            const barInProg = totalBar % 4;
+            const warmBreezeBarScales: number[][] = [
+              [349.23, 392.00, 440.00, 523.25, 587.33, 659.25],          // 1小節目: FM7
+              [329.63, 392.00, 440.00, 493.88, 587.33, 659.25],          // 2小節目: Em7
+              [293.66, 329.63, 349.23, 392.00, 440.00, 523.25, 587.33],  // 3小節目: Dm9 (B♮排除・協和音階)
+              [261.63, 293.66, 329.63, 392.00, 440.00, 493.88, 523.25]   // 4小節目: CM7
+            ];
+            const currentScale = warmBreezeBarScales[barInProg];
+            pitch = getWarmBreezeMelodyPitch(currentScale, prevWarmBreezePitchRef.current);
+            prevWarmBreezePitchRef.current = pitch;
+          } else {
+            const isAnticipationStep = (currentStep === 15);
+            let pitchChordNotes = shiftedChordNotes;
+            if (isAnticipationStep && (modifiedProg.bossaPatternIndex === 1 || modifiedProg.bossaPatternIndex === 2)) {
+              const nextChordIdx = (totalBar + 1) % modifiedProg.chords.length;
+              const nextChord = modifiedProg.chords[nextChordIdx];
+              pitchChordNotes = nextChord.notes.map((n) => n * pitchMultiplier);
+            }
 
-          let pitch = getNextMelodyPitch(
-            closestSt.frequency,
-            modifiedProg.melodyScale,
-            pitchChordNotes,
-            pitchMultiplier
-          ) ; // 1オクターブ下げるためにシフトを解除
+            pitch = getNextMelodyPitch(
+              closestSt.frequency,
+              modifiedProg.melodyScale,
+              pitchChordNotes,
+              pitchMultiplier
+            );
+          }
 
           // 音価: 短音中心 (0.32s) ＋ 長音 (0.95s) で強拍着地・フレーズ解決
           const duration = stepInfo.duration || (stepInfo.isLanding ? 0.95 : 0.32);
-          const melVol = isOutro ? 0.44 : (isAnticipationStep ? 0.56 : 0.52);
+          const melVol = isOutro ? 0.44 : (stepInfo.isLanding ? 0.54 : 0.48);
 
           tokyoMorningBossaGuitar.triggerNote(pitch, melVol, duration, audioNow);
         }
