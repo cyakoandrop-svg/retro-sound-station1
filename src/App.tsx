@@ -749,17 +749,85 @@ function generateBossaMelodySteps(
   const result: BossaMelodyStepInfo[] = [];
 
   if (bossaPatternIndex === 3) {
-    // パターン3 (★Warm Breeze): メロディ発音ステップ
-    // 1小節目(4, 8), 2小節目(4, 8), 3小節目(0, 8), 4小節目(4, 8)
+    // パターン3 (★Warm Breeze - 案A: 心地よいボサノヴァ・ランダムリズム生成):
+    // 4小節進行 (FM7 - Em7 - Dm9 - CM7) の骨格と歌心を保ちつつ、小節ごと・コーラスごとに
+    // 洗練されたシンコペーション、裏拍、アンティシペーション、休符のゆらぎを動的に演出
     const barInProg = totalBar % 4;
-    if (barInProg === 2) {
-      // 3小節目: Dm9 (ステップ 0, 8)
-      result.push({ step: 0, isLanding: false, duration: 0.65 });
-      result.push({ step: 8, isLanding: true, duration: 0.85 });
+    // 4小節（1コーラス）ごとのランダムフレーズ型 (0: クラシック, 1: シンコペーション, 2: アンティシペーション, 3: レイドバック・歌心)
+    const phraseType = Math.abs((Math.floor(totalBar / 4) * 3 + totalBar) % 4);
+
+    if (barInProg === 0) {
+      // 1小節目 (FM7): 歌い出しの優美なモチーフ
+      if (phraseType === 1) {
+        // シンコペーション型: 2(弱), 6(裏拍), 10(着地)
+        result.push({ step: 2, isLanding: false, duration: 0.45 });
+        result.push({ step: 6, isLanding: false, duration: 0.55 });
+        result.push({ step: 10, isLanding: true, duration: 0.85 });
+      } else if (phraseType === 2) {
+        // アンティシペーション型: 4(拍2), 8(拍3), 14(次小節への食い込み)
+        result.push({ step: 4, isLanding: false, duration: 0.55 });
+        result.push({ step: 8, isLanding: true, duration: 0.70 });
+        result.push({ step: 14, isLanding: false, duration: 0.40 });
+      } else if (phraseType === 3) {
+        // レイドバック型: 0(小節頭の提示), 6(シンコペーション)
+        result.push({ step: 0, isLanding: false, duration: 0.60 });
+        result.push({ step: 6, isLanding: true, duration: 0.90 });
+      } else {
+        // クラシック型: 4(拍2), 8(拍3のロング着地)
+        result.push({ step: 4, isLanding: false, duration: 0.65 });
+        result.push({ step: 8, isLanding: true, duration: 0.85 });
+      }
+    } else if (barInProg === 1) {
+      // 2小節目 (Em7): 自然な応答と展開
+      if (phraseType === 1) {
+        result.push({ step: 2, isLanding: false, duration: 0.45 });
+        result.push({ step: 8, isLanding: true, duration: 0.85 });
+      } else if (phraseType === 2) {
+        result.push({ step: 4, isLanding: false, duration: 0.55 });
+        result.push({ step: 10, isLanding: true, duration: 0.80 });
+      } else if (phraseType === 3) {
+        result.push({ step: 6, isLanding: false, duration: 0.50 });
+        result.push({ step: 10, isLanding: true, duration: 0.85 });
+      } else {
+        result.push({ step: 4, isLanding: false, duration: 0.65 });
+        result.push({ step: 8, isLanding: true, duration: 0.85 });
+      }
+    } else if (barInProg === 2) {
+      // 3小節目 (Dm9): 情感豊かなクライマックス（短3度Fと長9度Eの歌心・B音クラッシュ防止協和音階）
+      if (phraseType === 1) {
+        // 0拍頭から6拍裏への流れるようなフレーズ
+        result.push({ step: 0, isLanding: false, duration: 0.55 });
+        result.push({ step: 6, isLanding: false, duration: 0.45 });
+        result.push({ step: 10, isLanding: true, duration: 0.85 });
+      } else if (phraseType === 2) {
+        // 2拍裏からの応答と8拍着地
+        result.push({ step: 2, isLanding: false, duration: 0.50 });
+        result.push({ step: 8, isLanding: true, duration: 0.90 });
+      } else if (phraseType === 3) {
+        // 0拍頭の豊かなロングトーン
+        result.push({ step: 0, isLanding: true, duration: 1.10 });
+        result.push({ step: 10, isLanding: false, duration: 0.45 });
+      } else {
+        // 原型の安定進行: 0, 8
+        result.push({ step: 0, isLanding: false, duration: 0.65 });
+        result.push({ step: 8, isLanding: true, duration: 0.85 });
+      }
     } else {
-      // 1, 2, 4小節目: FM7, Em7, CM7 (ステップ 4, 8)
-      result.push({ step: 4, isLanding: false, duration: 0.65 });
-      result.push({ step: 8, isLanding: true, duration: 0.85 });
+      // 4小節目 (CM7): 調性解決と穏やかなブレス（次コーラスへの準備）
+      if (phraseType === 1) {
+        result.push({ step: 4, isLanding: false, duration: 0.55 });
+        result.push({ step: 8, isLanding: true, duration: 0.70 });
+        result.push({ step: 12, isLanding: false, duration: 0.40 });
+      } else if (phraseType === 2) {
+        result.push({ step: 6, isLanding: false, duration: 0.50 });
+        result.push({ step: 10, isLanding: true, duration: 0.85 });
+      } else if (phraseType === 3) {
+        // 温かな解決ロングトーン (1.05s)
+        result.push({ step: 4, isLanding: true, duration: 1.05 });
+      } else {
+        result.push({ step: 4, isLanding: false, duration: 0.65 });
+        result.push({ step: 8, isLanding: true, duration: 0.85 });
+      }
     }
     return result;
   }
@@ -1041,8 +1109,9 @@ const PATTERN2_EVEN_BAR_EVENTS: CompingStepEvent[] = [
  */
 function getWarmBreezeMelodyPitch(scale: number[], prevPitch: number | null): number {
   if (!prevPitch) {
-    // 歌い出し: FM7の温かみのある第3音 (A4 = 440.00Hz) または第5音 (C5 = 523.25Hz)
-    return scale[2] || scale[1] || scale[0];
+    // 歌い出し: FM7の美しいコードトーン（第1音、第3音、第5音、第9音）からランダム選定
+    const starters = [scale[0], scale[1], scale[2], scale[3]].filter(Boolean);
+    return starters[Math.floor(Math.random() * starters.length)] || scale[0];
   }
 
   // 直前音からの半音差を計算
@@ -1054,10 +1123,19 @@ function getWarmBreezeMelodyPitch(scale: number[], prevPitch: number | null): nu
   // 半音差が小さい順にソート (跳躍防止・ボイスリーディング)
   candidates.sort((a, b) => a.semitones - b.semitones);
 
-  // 同音連打（0半音）の過度な継続を防ぎ、1〜4半音（短2度・長2度・短3度・長3度）の歌う順次進行を優先
+  // 1. 同音連打（0半音）の過度な継続を防ぎ、1〜4半音（短2度・長2度・短3度・長3度）の歌う順次進行（85%）
   const stepCandidates = candidates.filter((c) => c.semitones >= 0.8 && c.semitones <= 4.2);
-  if (stepCandidates.length > 0 && Math.random() < 0.80) {
-    return stepCandidates[Math.floor(Math.random() * Math.min(stepCandidates.length, 2))].note;
+  // 2. ボサノヴァ特有の優美な跳躍（4度〜5度・5〜7半音のアルペジオ的跳躍アーチ）（15%）
+  const archCandidates = candidates.filter((c) => c.semitones > 4.2 && c.semitones <= 7.2);
+
+  if (archCandidates.length > 0 && Math.random() < 0.15) {
+    return archCandidates[Math.floor(Math.random() * archCandidates.length)].note;
+  }
+
+  if (stepCandidates.length > 0) {
+    // 上位2〜3候補の中からランダムに選択（旋律に有機的なゆらぎを付与）
+    const pickRange = Math.min(stepCandidates.length, 3);
+    return stepCandidates[Math.floor(Math.random() * pickRange)].note;
   }
 
   return candidates[0].note;
@@ -2362,6 +2440,7 @@ export default function App() {
   const staticGainRef = useRef<GainNode | null>(null);
   const prevPattern2NotesRef = useRef<number[] | null>(null);
   const prevWarmBreezePitchRef = useRef<number | null>(null);
+  const lastWarmBreezeShiftRef = useRef<number>(0);
 
   // 合成音楽用のマスター Gain Node
   const musicGainRef = useRef<GainNode | null>(null);
@@ -4318,10 +4397,13 @@ export default function App() {
     let semitoneShift = randomKeyShift;
 
     if (closestSt.frequency === 88.1 && bossaPatternIndex === 3) {
-      // 88.1MHz パターン3 (★Warm Breeze):
-      // 76 BPM と F Major の原調を厳密に保持（ランダム移調せず semitoneShift = 0）
-      semitoneShift = 0;
-      tempoMultiplier = 1.0;
+      // 88.1MHz パターン3 (★Warm Breeze - 案A: 心地よい±2〜3半音のランダム移調):
+      // F Majorを中心に、温かみのあるボサノヴァ音域（-3〜+2半音: D, Eb, E, F, Gb, G Major）へ演奏毎に移調
+      const warmBreezeKeyShifts = [-3, -2, -1, 0, 1, 2];
+      const validShifts = warmBreezeKeyShifts.filter((s) => s !== lastWarmBreezeShiftRef.current);
+      semitoneShift = validShifts[Math.floor(Math.random() * validShifts.length)];
+      lastWarmBreezeShiftRef.current = semitoneShift;
+      tempoMultiplier = 1.0; // 76 BPM の心地よいテンポ感は厳格に維持
     } else if (closestSt.frequency === 105.8 && bossaPatternIndex === 2) {
       // 105.8MHz パターン2 (ドビュッシー「夢」水滴分散和音アルペジオ):
       // ドビュッシーの印象派和声(Fmaj9/F Lydian)と70 BPMのチルホップ雨音テンポを厳密に維持（半音移調や意図せぬ78BPMへの加速を完全防止）
@@ -5560,13 +5642,18 @@ export default function App() {
             // 3小節目 (Dm9): [D4, E4, F4, G4, A4, C5, D5] ※不協和音となるB♮を排し、短3度F4と長9度E4が歌う協和音階
             // 4小節目 (CM7): [C4, D4, E4, G4, A4, B4, C5]
             const barInProg = totalBar % 4;
+            // 8小節（2コーラス）の区切りでメロディを優美にブレス・新しい歌い出しへ再展開
+            if (barInProg === 0 && totalBar % 8 === 0 && currentStep === currentBossaBarPattern[0]?.step) {
+              prevWarmBreezePitchRef.current = null;
+            }
             const warmBreezeBarScales: number[][] = [
               [349.23, 392.00, 440.00, 523.25, 587.33, 659.25],          // 1小節目: FM7
               [329.63, 392.00, 440.00, 493.88, 587.33, 659.25],          // 2小節目: Em7
               [293.66, 329.63, 349.23, 392.00, 440.00, 523.25, 587.33],  // 3小節目: Dm9 (B♮排除・協和音階)
               [261.63, 293.66, 329.63, 392.00, 440.00, 493.88, 523.25]   // 4小節目: CM7
             ];
-            const currentScale = warmBreezeBarScales[barInProg];
+            // 移調倍率 (pitchMultiplier) を適用して、転調時もコード・ベース・メロディを完全調性同期
+            const currentScale = warmBreezeBarScales[barInProg].map((n) => n * pitchMultiplier);
             pitch = getWarmBreezeMelodyPitch(currentScale, prevWarmBreezePitchRef.current);
             prevWarmBreezePitchRef.current = pitch;
           } else {
